@@ -102,7 +102,7 @@ def main():
 
     # training loop
     start_time = datetime.now()
-    start_epoch = 0 if args.model is None else int(args.model.split('.')[0][-1])
+    start_epoch = 0 if args.model is None else int(args.model.split('.')[0].split('_')[-1])
     for e in range(start_epoch, args.epoch):
         epoch = e + 1
         # train
