@@ -69,7 +69,8 @@ def main():
 
     # Load the dataset
     root = Path('Data')
-    
+    Path(args.out).mkdir(exist_ok=True)
+
     data = Data(root, args.size, args.lang, args.batchsize, min_freq=args.freq, device=args.gpu)
     data.make_dataset(Path(args.out), logger=log)
     train_iter = data.train_iter
