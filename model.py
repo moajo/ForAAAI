@@ -2,6 +2,29 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class Map(nn.Module):
+    def __init__(self, hidden_size=256):
+        super(Map, self).__init__()
+        self.hidden_size= hidden_size
+        self.W = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, hs1, hs2, label1, label2, loss_fun):
+        # source
+        label1  = label1.float()
+        hs1_sum = torch.sum(hs1, 0)
+        context1 = torch.div(hs1_sum.transpose(1,0), label1)
+        context1 = context1.transpose(1,0)
+        # target
+        label2  = label2.float()
+        hs2_sum = torch.sum(hs2, 0)
+        context2 = torch.div(hs2_sum.transpose(1,0), label2)
+        context2 = context2.transpose(1,0)
+        
+        loss1 = loss_fun(context1, context2.detach())
+        loss2 = loss_fun(context2, context1.detach())
+        
+        return (loss1 + loss2) / 2
+
 class Seq2Seq(nn.Module):
     def __init__(self, source_vocab_size, target_vocab_size):
         super(Seq2Seq, self).__init__()
@@ -28,7 +51,7 @@ class EncoderRNN(nn.Module):
         self.dropout_p = dropout_p
 
         # Define layers
-        self.embedding = nn.Embedding(input_size, hidden_size)
+        self.embedding = nn.Embedding(input_size, hidden_size, padding_idx=1)
         self.lstm_fwd1 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
         self.lstm_fwd2 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
         self.lstm_bwd1 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
@@ -47,17 +70,17 @@ class EncoderRNN(nn.Module):
             bembed, bmask = embedded_words[-i-1], word_inputs[-i-1] == 1
             # 順方向LSTM
             finput = fembed
-            fstatus1 = self.lstm_fwd1(finput, fstatus1, fmask)
-            finput = fstatus1[0]
-            fstatus2 = self.lstm_fwd2(finput, fstatus2, fmask)
+            fh, fstatus1 = self.lstm_fwd1(finput, fstatus1, fmask)
+            finput = fh
+            fh, fstatus2 = self.lstm_fwd2(finput, fstatus2, fmask)
             # 逆方向LSTM
             binput = bembed
-            bstatus1 = self.lstm_bwd1(binput, bstatus1, bmask)
-            binput = bstatus1[0]
-            bstatus2 = self.lstm_bwd2(binput, bstatus2, bmask)
+            bh, bstatus1 = self.lstm_bwd1(binput, bstatus1, bmask)
+            binput = bh
+            bh, bstatus2 = self.lstm_bwd2(binput, bstatus2, bmask)
             # 状態を保存
-            fhs.append(fstatus2[0])
-            bhs.append(bstatus2[0])
+            fhs.append(fh)
+            bhs.append(bh)
 
         outputs = []
         for fwd, bwd in zip(fhs, reversed(bhs)):
@@ -77,8 +100,7 @@ class AttnDecoderRNN(nn.Module):
         self.dropout_p = dropout_p
 
         # Define layers
-        self.embedding = nn.Embedding(output_size, hidden_size)
-        #self.lstm1 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
+        self.embedding = nn.Embedding(output_size, hidden_size, padding_idx=1)
         self.lstm1 = LSTMCell(hidden_size * 2, hidden_size, dropout=dropout_p)
         self.lstm2 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
         self.out = nn.Linear(hidden_size * 2, output_size)
@@ -121,10 +143,10 @@ class AttnDecoderRNN(nn.Module):
             last_context = torch.zeros_like(word_embedded)
         
         rnn_input = self.dropout(torch.cat((word_embedded, last_context), 1))
-        status1 = self.lstm1(rnn_input, status1)
-        rnn_input = status1[0]
-        status2 = self.lstm2(rnn_input, status2)
-        rnn_output = torch.unsqueeze(status2[0], dim=0) # S=1 x B x H
+        h, status1 = self.lstm1(rnn_input, status1)
+        rnn_input = h
+        h, status2 = self.lstm2(rnn_input, status2)
+        rnn_output = torch.unsqueeze(h, dim=0) # S=1 x B x H
 
         # Calculate attention from current RNN state and all encoder outputs; apply to encoder outputs
         attn_weights = self.attn(rnn_output, encoder_outputs, src_inputs)
@@ -173,8 +195,11 @@ class LSTMCell(nn.LSTMCell):
             hx = (zeros, zeros)
         old_hx = hx
         hx = super(LSTMCell, self).__call__(input, hx)
+        h = hx[0]
         if mask is not None:
             mask = torch.unsqueeze(mask, dim=1)
             hx = (torch.where(mask, old_hx[0], hx[0]),
                   torch.where(mask, old_hx[1], hx[1]))
-        return hx
+            zeros = torch.zeros_like(hx[0])
+            h = torch.where(mask, zeros, hx[0])
+        return h, hx
