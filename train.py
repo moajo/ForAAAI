@@ -22,13 +22,13 @@ class Classifier(nn.Module):
         src_sos = src[ :-1] if train else None
         src_eos = src[1:  ]
         src_length = None if train else len(src_eos)
-        labels_t2s, output_t2s, attn_t2s = self.model_t2s(trg, src_sos, length=src_length)
+        labels_t2s, output_t2s, enc_outputs_t2s = self.model_t2s(trg, src_sos, length=src_length)
 
         # sorce2target
         trg_sos = trg[ :-1] if train else None
         trg_eos = trg[1:  ]
         trg_length = None if train else len(trg_eos)
-        labels_s2t, output_s2t, attn_s2t = self.model_s2t(src, trg_sos, length=trg_length)
+        labels_s2t, output_s2t, enc_outputs_s2t = self.model_s2t(src, trg_sos, length=trg_length)
 
         # sorce2target loss
         L, B, V = output_s2t.size()
@@ -42,7 +42,14 @@ class Classifier(nn.Module):
         src_eos = src_eos.view(L * B)
         loss_t2s = self.loss_fun(output_t2s, src_eos)
 
-        return labels_s2t, labels_t2s, loss_s2t, loss_t2s
+        ## mapping loss
+        if self.mapping is not None:
+            #loss_map = self.mapping(enc_outputs_s2t, enc_outputs_t2s)
+            pass
+        else:
+            loss_map = None
+                
+        return labels_s2t, labels_t2s, loss_s2t, loss_t2s, loss_map
 
 def main():
     parser = argparse.ArgumentParser(description='Custom_loop PyTorch')
@@ -114,7 +121,7 @@ def main():
             optimizer_s2t.zero_grad()
             optimizer_t2s.zero_grad()
             #mapping.zero_grad()
-            _, _, loss_s2t, loss_t2s = model(batch.src, batch.trg)
+            _, _, loss_s2t, loss_t2s, loss_map = model(batch.src, batch.trg)
             sum_loss_train_s2t += loss_s2t.item()
             sum_loss_train_t2s += loss_t2s.item()
             tmp_loss_train_s2t += loss_s2t.item()
@@ -138,14 +145,14 @@ def main():
         model.eval()
         for batch in val_iter:
             with torch.no_grad():
-                _, _, loss_s2t, loss_t2s = model(batch.src, batch.trg)
+                _, _, loss_s2t, loss_t2s, _ = model(batch.src, batch.trg)
             sum_loss_val_s2t += loss_s2t.item()
             sum_loss_val_t2s += loss_t2s.item()
         # bleu
         hyp_s2t, ref_s2t, hyp_t2s, ref_t2s = [], [], [], []
         for batch in val_iter:
             with torch.no_grad():
-                labels_s2t, labels_t2s, _, _ = model(batch.src, batch.trg, train=False)
+                labels_s2t, labels_t2s, _, _, _ = model(batch.src, batch.trg, train=False)
             labels = labels_s2t.transpose(0, 1).cpu().numpy().tolist()
             golds = batch.trg.transpose(0, 1).cpu().numpy().tolist()
             # target2source

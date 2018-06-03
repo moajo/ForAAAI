@@ -7,7 +7,7 @@ class Seq2Seq(nn.Module):
         super(Seq2Seq, self).__init__()
         hidden_size = 256
         self.encoder = EncoderRNN(source_vocab_size, hidden_size)
-        self.decoder = AttnDecoderRNN('general', hidden_size, target_vocab_size)
+        self.decoder = AttnDecoderRNN('dot', hidden_size, target_vocab_size)
 
     def forward(self, src, trg, length=60):
         # encoder
@@ -15,8 +15,8 @@ class Seq2Seq(nn.Module):
         last_status = enc_status
         # decoder
         labels, dec_outputs, attn_weights = self.decoder(trg, last_status, enc_outputs, src, length)
-        return labels, dec_outputs, attn_weights
-        
+        return labels, dec_outputs, enc_outputs
+
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, n_layers=1, dropout_p=0.1):
         super(EncoderRNN, self).__init__()
