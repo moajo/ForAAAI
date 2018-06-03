@@ -154,7 +154,7 @@ def main():
             with torch.no_grad():
                 labels_s2t, labels_t2s, _, _, _ = model(batch.src, batch.trg, train=False)
             labels = labels_s2t.transpose(0, 1).cpu().numpy().tolist()
-            golds = batch.trg[0].transpose(0, 1).cpu().numpy().tolist()
+            golds = batch.trg.transpose(0, 1).cpu().numpy().tolist()
             # target2source
             hyp_s2t.extend([label2word(strip_token(line),
                                        vocab=data.TEXT_trg.vocab.itos,
@@ -166,7 +166,7 @@ def main():
                             for line in golds])
             # target2source
             labels = labels_t2s.transpose(0, 1).cpu().numpy().tolist()
-            golds = batch.src[0].transpose(0, 1).cpu().numpy().tolist()
+            golds = batch.src.transpose(0, 1).cpu().numpy().tolist()
             hyp_t2s.extend([label2word(strip_token(line),
                                        vocab=data.TEXT_src.vocab.itos,
                                        return_str=False) for line in labels])
