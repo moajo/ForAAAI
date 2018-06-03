@@ -2,29 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class Map(nn.Module):
-    def __init__(self, hidden_size=256):
-        super(Map, self).__init__()
-        self.hidden_size= hidden_size
-        self.W = nn.Linear(hidden_size, hidden_size)
-
-    def forward(self, hs1, hs2, label1, label2, loss_fun):
-        # source
-        label1  = label1.float()
-        hs1_sum = torch.sum(hs1, 0)
-        context1 = torch.div(hs1_sum.transpose(1,0), label1)
-        context1 = context1.transpose(1,0)
-        # target
-        label2  = label2.float()
-        hs2_sum = torch.sum(hs2, 0)
-        context2 = torch.div(hs2_sum.transpose(1,0), label2)
-        context2 = context2.transpose(1,0)
-        
-        loss1 = loss_fun(context1, context2.detach())
-        loss2 = loss_fun(context2, context1.detach())
-        
-        return (loss1 + loss2) / 2
-
 class Seq2Seq(nn.Module):
     def __init__(self, source_vocab_size, target_vocab_size):
         super(Seq2Seq, self).__init__()
