@@ -15,8 +15,8 @@ class Data():
         
     def make_dataset(self, save_path=None, logger=print):
         # prepare Field
-        TEXT_src = data.Field(sequential=True, tokenize=self.tokenizer, init_token='<sos>', eos_token='<eos>')
-        TEXT_trg = data.Field(sequential=True, tokenize=self.tokenizer, init_token='<sos>', eos_token='<eos>')
+        TEXT_src = data.Field(sequential=True, tokenize=self.tokenizer, init_token='<sos>', eos_token='<eos>', include_lengths=True)
+        TEXT_trg = data.Field(sequential=True, tokenize=self.tokenizer, init_token='<sos>', eos_token='<eos>', include_lengths=True)
 
         # file path
         train_file = self.root / self.lang / self.size / 'train.{}'.format(self.lang)
