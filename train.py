@@ -164,7 +164,7 @@ def main():
             with torch.no_grad():
                 labels_s2t, labels_t2s, _, _, _ = model(batch.src, batch.trg, train=False)
             labels = labels_s2t.transpose(0, 1).cpu().numpy().tolist()
-            golds = batch.trg.transpose(0, 1).cpu().numpy().tolist()
+            golds = batch.trg[0].transpose(0, 1).cpu().numpy().tolist()
             # target2source
             hyp_s2t.extend([label2word(strip_token(line),
                                        vocab=data.TEXT_trg.vocab.itos,
@@ -176,7 +176,7 @@ def main():
                             for line in golds])
             # target2source
             labels = labels_t2s.transpose(0, 1).cpu().numpy().tolist()
-            golds = batch.src.transpose(0, 1).cpu().numpy().tolist()
+            golds = batch.src[0].transpose(0, 1).cpu().numpy().tolist()
             hyp_t2s.extend([label2word(strip_token(line),
                                        vocab=data.TEXT_src.vocab.itos,
                                        return_str=False) for line in labels])
@@ -198,7 +198,7 @@ def main():
                     sum_loss_val_s2t/len(val_iter),
                     sum_loss_val_t2s/len(val_iter),
                     sum_loss_val_map/len(val_iter)))
-        log('[val]\tepoch:{}\tbleu(s2t):{},\tbleu(t2s):{},\tloss(map):{}'
+        log('[val]\tepoch:{}\tbleu(s2t):{},\tbleu(t2s):{}'
             .format(epoch, bleu_s2t, bleu_t2s))
         # log file
         log('epoch\t{}\tloss(s2t)\t{}\tloss(t2s)\t{}\tloss(map)\t{}'
