@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy
 
 class Seq2Seq(nn.Module):
     def __init__(self, source_vocab_size, target_vocab_size):
@@ -9,10 +10,12 @@ class Seq2Seq(nn.Module):
         self.encoder = EncoderRNN(source_vocab_size, hidden_size)
         self.decoder = AttnDecoderRNN('dot', hidden_size, target_vocab_size)
 
-    def forward(self, src, trg, length=60):
+    def forward(self, src, trg, src_lengths, length=60):
         # encoder
-        enc_outputs, enc_status = self.encoder(src)
-        last_status = enc_status
+        enc_outputs, enc_status = self.encoder(src, src_lengths)
+        index = torch.tensor([1,3], device = enc_outputs.device)
+        last_status = (torch.index_select(enc_status[0], 0, index),
+                       torch.index_select(enc_status[1], 0, index))
         # decoder
         labels, dec_outputs, attn_weights = self.decoder(trg, last_status, enc_outputs, src, length)
         return labels, dec_outputs, enc_outputs
@@ -29,13 +32,33 @@ class EncoderRNN(nn.Module):
 
         # Define layers
         self.embedding = nn.Embedding(input_size, hidden_size, padding_idx=1)
-        self.lstm_fwd1 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
-        self.lstm_fwd2 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
-        self.lstm_bwd1 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
-        self.lstm_bwd2 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
+        self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers=2, dropout=dropout_p, bidirectional=True)
+        #self.lstm_fwd1 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
+        #self.lstm_fwd2 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
+        #self.lstm_bwd1 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
+        #self.lstm_bwd2 = LSTMCell(hidden_size, hidden_size, dropout=dropout_p)
         self.dropout = nn.Dropout(p=dropout_p)
 
-    def forward(self, word_inputs):
+    def forward(self, word_inputs, lengths):
+        lengths, parm_idx = torch.sort(lengths, 0, descending=True)
+        def _inverse_indices(indices):
+            indices = indices.cpu().numpy()
+            r = numpy.empty_like(indices)
+            r[indices] = numpy.arange(len(indices))
+            return r
+        device=parm_idx.device
+        parm_idx_rev = torch.tensor(_inverse_indices(parm_idx), device=device)
+        word_inputs = word_inputs[:,parm_idx]
+        embedded_words = self.dropout(self.embedding(word_inputs))# L x B x H
+        packed_input =nn.utils.rnn.pack_padded_sequence(embedded_words, lengths)
+        packed_output, (ht, ct) = self.lstm(packed_input)
+        output = nn.utils.rnn.pad_packed_sequence(packed_output)
+        output = output[0][:,parm_idx_rev] # L x B x 2H
+        L, B, _ = output.size()
+        output = output.view(L, B, 2, -1).sum(dim=2)
+        return output, (ht, ct)
+        
+    def unpad_forward(self, word_inputs):
         # Note: we run this all at once (over the whole input sequence)
         embedded_words = self.dropout(self.embedding(word_inputs))# L x B x H
         

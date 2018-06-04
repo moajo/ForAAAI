@@ -28,11 +28,11 @@ class Classifier(nn.Module):
 
         # target2source 
         src_length = None if train else len(src_eos)
-        labels_t2s, output_t2s, enc_outputs_t2s = self.model_t2s(trg_eos, src_sos, length=src_length)
+        labels_t2s, output_t2s, enc_outputs_t2s = self.model_t2s(trg_eos, src_sos, src_lengths=t_length-1, length=src_length)
 
         # sorce2target
         trg_length = None if train else len(trg_eos)
-        labels_s2t, output_s2t, enc_outputs_s2t = self.model_s2t(src_eos, trg_sos, length=trg_length)
+        labels_s2t, output_s2t, enc_outputs_s2t = self.model_s2t(src_eos, trg_sos, src_lengths=s_length-1, length=trg_length)
 
         # sorce2target loss
         L, B, V = output_s2t.size()
